@@ -15,11 +15,36 @@ def prompt_str(prompt: str, default: str) -> str:
     return raw if raw else default
 
 
+def prompt_str_required(prompt: str) -> str:
+    """Like prompt_str, but there is no default -- an empty answer just
+    re-asks the question instead of silently filling in a value."""
+    while True:
+        raw = input(f"{prompt}: ").strip()
+        if raw == "":
+            print("  This value is required, please enter a value.")
+            continue
+        return raw
+
+
 def prompt_int(prompt: str, default: int) -> int:
     while True:
         raw = input(f"{prompt} [{default}]: ").strip()
         if raw == "":
             return default
+        try:
+            return int(raw)
+        except ValueError:
+            print("  Please enter a whole number.")
+
+
+def prompt_int_required(prompt: str) -> int:
+    """Like prompt_int, but there is no default -- an empty answer just
+    re-asks the question instead of silently filling in a value."""
+    while True:
+        raw = input(f"{prompt}: ").strip()
+        if raw == "":
+            print("  This value is required, please enter a whole number.")
+            continue
         try:
             return int(raw)
         except ValueError:
@@ -45,15 +70,23 @@ def prompt_yes_no(prompt: str, default: bool) -> bool:
     return raw in ("y", "yes")
 
 
+def prompt_yes_no_required(prompt: str) -> bool:
+    """Like prompt_yes_no, but there is no default -- an empty or unrecognized
+    answer just re-asks the question instead of silently picking a value."""
+    while True:
+        raw = input(f"{prompt} [y/n]: ").strip().lower()
+        if raw in ("y", "yes"):
+            return True
+        if raw in ("n", "no"):
+            return False
+        print("  Please answer y or n.")
+
+
 def main():
     print("=== OR Scheduler Setup ===")
     capacity = prompt_int("OR shift capacity in minutes", 480)
 
-    if prompt_yes_no("Customize priority weights (aging_rate / displacement_penalty)?", False):
-        aging_rate = prompt_float("Aging rate (priority points added per minute waited)", 0.05)
-        displacement_penalty = prompt_float("Displacement penalty (priority points added per bump)", 2.0)
-    else:
-        aging_rate, displacement_penalty = 0.05, 2.0
+    aging_rate, displacement_penalty = 0.05, 2.0
 
     scheduler = ORScheduler(capacity=capacity, aging_rate=aging_rate, displacement_penalty=displacement_penalty)
 
@@ -64,29 +97,35 @@ def main():
     print("\n=== Add Surgical Cases ===")
     print("(Enter cases one at a time. Type 'n' when asked to add another to stop.)\n")
 
-    while prompt_yes_no("Add a surgical case?", True):
+    case_count = 0
+    while prompt_yes_no_required("Add a surgical case?"):
         case_id = next(case_id_counter)
 
-        name = prompt_str("  Patient name", f"Patient {case_id}")
-        duration = prompt_int("  Estimated duration (minutes)", 30)
-        severity = prompt_int("  Base clinical severity (higher = more urgent)", 5)
-        is_emergency = prompt_yes_no("  Is this an emergency case?", False)
+        name = prompt_str_required("  Patient name")
+        duration = prompt_int("  Estimated duration (minutes)", 60)
+        severity = prompt_int_required("  Base clinical severity (higher = more urgent): ")
+        is_emergency = prompt_yes_no_required("  Is this an emergency case?")
 
         # New cases always start with zero waiting time / zero displacements
         # unless the user explicitly wants to seed a case that's "already
         # been waiting" (e.g. re-entering existing backlog data).
         waiting_time, displacement_count = 0, 0
-        if prompt_yes_no("  Override starting waiting_time / displacement_count?", False):
-            waiting_time = prompt_int("    Starting waiting_time (minutes)", 0)
-            displacement_count = prompt_int("    Starting displacement_count", 0)
+        if prompt_yes_no_required("  Override starting waiting_time / displacement_count?"):
+            waiting_time = prompt_int_required("    Starting waiting_time (minutes)")
+            displacement_count = prompt_int_required("    Starting displacement_count")
 
         case = SurgicalCase(case_id, name, duration, severity, waiting_time, displacement_count, is_emergency)
         scheduler.add_case(case)
+        case_count += 1
 
         tag = " (EMERGENCY -- queued for preemption)" if is_emergency else ""
         print(f"  -> Added case [{case_id}] {name}{tag}\n")
 
-    method = prompt_str("\nScheduling method: 'dp' (optimal) or 'greedy' (fast)", "dp").strip().lower()
+    if case_count == 0:
+        print("No surgical cases were added. Exiting without scheduling.")
+        return
+
+    method = prompt_str_required("\nScheduling method: 'dp' (optimal) or 'greedy' (fast)").strip().lower()
     if method not in ("dp", "greedy"):
         print(f"  Unrecognized method '{method}', defaulting to 'dp'.")
         method = "dp"
