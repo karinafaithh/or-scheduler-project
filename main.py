@@ -48,12 +48,8 @@ def prompt_yes_no(prompt: str, default: bool) -> bool:
 def main():
     print("=== OR Scheduler Setup ===")
     capacity = prompt_int("OR shift capacity in minutes", 480)
-
-    if prompt_yes_no("Customize priority weights (aging_rate / displacement_penalty)?", False):
-        aging_rate = prompt_float("Aging rate (priority points added per minute waited)", 0.05)
-        displacement_penalty = prompt_float("Displacement penalty (priority points added per bump)", 2.0)
-    else:
-        aging_rate, displacement_penalty = 0.05, 2.0
+    
+    aging_rate, displacement_penalty = 0.05, 2.0
 
     scheduler = ORScheduler(capacity=capacity, aging_rate=aging_rate, displacement_penalty=displacement_penalty)
 
